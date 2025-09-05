@@ -1,3 +1,4 @@
+
 streamlit>=1.36
 streamlit-folium>=0.20
 geopandas>=0.14
@@ -13,5 +14,4 @@ numpy>=1.26
 pystac-client>=0.7
 planetary-computer>=1.0
 pyarrow>=15.0
-
 scikit-learn>=1.3

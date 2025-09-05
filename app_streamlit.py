@@ -12,7 +12,8 @@ import streamlit as st
 import geopandas as gpd
 import pandas as pd
 import numpy as np
-from shapely.geometry import Point, Polygon, MultiPolygon
+from shapely.geometry import Point, Polygon, MultiPolygon, shape
+from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 import networkx as nx
 import folium
@@ -36,7 +37,7 @@ st.set_page_config(page_title="Isochrone Map • Roads + Buildings", layout="wid
 
 st.title("Distance/Time Isochrones with OSM Roads + Buildings")
 st.caption("Upload a shapefile (.zip) or GeoJSON, choose time/distance bands, and compute isochrones along OSM roads. "
-           "Buildings are fetched from OSM (default) or Microsoft Global ML Building Footprints via Planetary Computer (experimental).")
+           "Buildings are fetched from OSM (default) or Microsoft Global ML Building Footprints (Planetary Computer).")
 
 # -------------------- Helpers --------------------
 def to_utm_epsg(lat: float, lon: float) -> int:
@@ -115,7 +116,7 @@ def make_iso_polys(G, nodes_gdf, thresholds) -> gpd.GeoDataFrame:
         polys.append({'threshold': thr, 'geometry': poly})
     return gpd.GeoDataFrame(polys, crs=nodes_gdf.crs)
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, hash_funcs={BaseGeometry: lambda g: g.wkb})
 def fetch_osm_buildings(polygon) -> gpd.GeoDataFrame:
     tags = {"building": True}
     try:
@@ -127,7 +128,7 @@ def fetch_osm_buildings(polygon) -> gpd.GeoDataFrame:
         st.warning(f"OSM building fetch failed: {e}")
         return gpd.GeoDataFrame(geometry=[], crs="EPSG:4326")
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, hash_funcs={BaseGeometry: lambda g: g.wkb})
 def fetch_ms_buildings_pc(polygon) -> gpd.GeoDataFrame:
     if not HAS_PC:
         raise RuntimeError("Planetary Computer libraries not installed. See README for enabling Microsoft buildings.")
@@ -150,7 +151,6 @@ def fetch_ms_buildings_pc(polygon) -> gpd.GeoDataFrame:
             if df.crs is None:
                 df.set_crs(epsg=4326, inplace=True)
             df = df.to_crs(4326)
-            # Keep only polygons
             df = df[df.geometry.geom_type.isin(["Polygon","MultiPolygon"])]
             if not df.empty:
                 frames.append(df[["geometry"]].copy())
@@ -165,7 +165,6 @@ def fetch_ms_buildings_pc(polygon) -> gpd.GeoDataFrame:
 def summarize_buildings_by_band(buildings_gdf: gpd.GeoDataFrame, iso_gdf: gpd.GeoDataFrame, centroid) -> pd.DataFrame:
     if buildings_gdf is None or buildings_gdf.empty or iso_gdf is None or iso_gdf.empty:
         return pd.DataFrame(columns=["band","buildings","area_m2_sum","area_m2_mean"])
-    # compute area in UTM for accuracy
     utm_epsg = to_utm_epsg(centroid.y, centroid.x)
     bld = buildings_gdf.to_crs(epsg=utm_epsg).copy()
     bld["area_m2"] = bld.geometry.area
@@ -187,7 +186,6 @@ def gdf_to_download_bytes(gdf: gpd.GeoDataFrame, driver="GeoJSON") -> bytes:
     if driver.lower() == "geojson":
         gdf.to_file(buf, driver="GeoJSON")
         return buf.getvalue()
-    # default to GeoPackage inside memory file
     tmp = tempfile.NamedTemporaryFile(suffix=".gpkg", delete=False)
     tmp.close()
     gdf.to_file(tmp.name, driver="GPKG")
@@ -249,7 +247,7 @@ if run:
     with st.spinner("Downloading OSM road network... (can take a minute)"):
         try:
             G = ox.graph_from_polygon(study_poly, network_type=net_type, simplify=True)
-            # Project graph to a local meter-based CRS so nearest-node search doesn't need scikit-learn
+            # Project graph so nearest-nodes doesn't require scikit-learn
             G = ox.project_graph(G)
             G = ox.add_edge_speeds(G)
             G = ox.add_edge_travel_times(G)
@@ -277,6 +275,7 @@ if run:
             nodes_iso["dist"] = nodes_iso.index.map(min_dist)
             nodes_iso = nodes_iso.dropna(subset=["dist"])
             iso_gdf = make_iso_polys(G, nodes_iso, thresholds)
+
             # Convert isochrones to WGS84 for display/download
             iso_gdf = iso_gdf.to_crs(4326)
             iso_gdf["label"] = [label_from_thr(t) for t in iso_gdf["threshold"]]
