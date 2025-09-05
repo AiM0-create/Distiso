@@ -278,8 +278,8 @@ if run:
             nodes_iso = nodes_iso.dropna(subset=["dist"])
             iso_gdf = make_iso_polys(G, nodes_iso, thresholds)
             # Convert isochrones to WGS84 for display/download
-iso_gdf = iso_gdf.to_crs(4326)
-iso_gdf["label"] = [label_from_thr(t) for t in iso_gdf["threshold"]]
+            iso_gdf = iso_gdf.to_crs(4326)
+            iso_gdf["label"] = [label_from_thr(t) for t in iso_gdf["threshold"]]
 
             iso_gdf = iso_gdf.sort_values("threshold").reset_index(drop=True)
         except Exception as e:
