@@ -13,3 +13,5 @@ numpy>=1.26
 pystac-client>=0.7
 planetary-computer>=1.0
 pyarrow>=15.0
+
+scikit-learn>=1.3

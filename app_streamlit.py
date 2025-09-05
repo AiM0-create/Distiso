@@ -249,16 +249,24 @@ if run:
     with st.spinner("Downloading OSM road network... (can take a minute)"):
         try:
             G = ox.graph_from_polygon(study_poly, network_type=net_type, simplify=True)
-            G = ox.add_edge_speeds(G)
-            G = ox.add_edge_travel_times(G)
-            nodes, edges = ox.graph_to_gdfs(G)
+# Project graph to a local meter-based CRS so nearest-node search doesn't need scikit-learn
+G = ox.project_graph(G)
+G = ox.add_edge_speeds(G)        # adds speed_kph where possible
+G = ox.add_edge_travel_times(G)  # adds travel_time (seconds)
+nodes, edges = ox.graph_to_gdfs(G)
+
         except Exception as e:
             st.error(f"OSM road network fetch failed: {e}")
             st.stop()
 
     with st.spinner("Computing isochrones..."):
         try:
-            origins = nearest_nodes_for_points(G, gdf_points)
+            # Reproject uploaded points to the graph's CRS before nearest-node search
+gdf_points_proj = gdf_points.to_crs(nodes.crs)
+xs = gdf_points_proj.geometry.x.to_list()
+ys = gdf_points_proj.geometry.y.to_list()
+origins = ox.distance.nearest_nodes(G, X=xs, Y=ys)
+
             # multi-source Dijkstra
             dist_dicts = []
             for o in origins:
@@ -270,7 +278,10 @@ if run:
             nodes_iso["dist"] = nodes_iso.index.map(min_dist)
             nodes_iso = nodes_iso.dropna(subset=["dist"])
             iso_gdf = make_iso_polys(G, nodes_iso, thresholds)
-            iso_gdf["label"] = [label_from_thr(t) for t in iso_gdf["threshold"]]
+            # Convert isochrones to WGS84 for display/download
+iso_gdf = iso_gdf.to_crs(4326)
+iso_gdf["label"] = [label_from_thr(t) for t in iso_gdf["threshold"]]
+
             iso_gdf = iso_gdf.sort_values("threshold").reset_index(drop=True)
         except Exception as e:
             st.error(f"Isochrone computation failed: {e}")
@@ -311,8 +322,9 @@ if run:
 
     # Draw a light road overlay for context
     try:
-        edges_simple = edges[["geometry"]].copy()
-        folium.GeoJson(edges_simple.to_json(), name="Road network", style_function=lambda x: {"color":"#555","weight":1}).add_to(m)
+        edges_simple = edges[["geometry"]].to_crs(4326).copy()
+folium.GeoJson(edges_simple.to_json(), name="Road network", style_function=lambda x: {"color":"#555","weight":1}).add_to(m)
+
     except Exception as e:
         st.warning(f"Road overlay skipped: {e}")
 
