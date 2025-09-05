@@ -322,8 +322,7 @@ if run:
     # Draw a light road overlay for context
     try:
         edges_simple = edges[["geometry"]].to_crs(4326).copy()
-folium.GeoJson(edges_simple.to_json(), name="Road network", style_function=lambda x: {"color":"#555","weight":1}).add_to(m)
-
+        folium.GeoJson(edges_simple.to_json(), name="Road network", style_function=lambda x: {"color":"#555","weight":1}).add_to(m)
     except Exception as e:
         st.warning(f"Road overlay skipped: {e}")
 
