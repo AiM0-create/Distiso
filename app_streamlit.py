@@ -249,12 +249,11 @@ if run:
     with st.spinner("Downloading OSM road network... (can take a minute)"):
         try:
             G = ox.graph_from_polygon(study_poly, network_type=net_type, simplify=True)
-# Project graph to a local meter-based CRS so nearest-node search doesn't need scikit-learn
-G = ox.project_graph(G)
-G = ox.add_edge_speeds(G)        # adds speed_kph where possible
-G = ox.add_edge_travel_times(G)  # adds travel_time (seconds)
-nodes, edges = ox.graph_to_gdfs(G)
-
+            # Project graph to a local meter-based CRS so nearest-node search doesn't need scikit-learn
+            G = ox.project_graph(G)
+            G = ox.add_edge_speeds(G)
+            G = ox.add_edge_travel_times(G)
+            nodes, edges = ox.graph_to_gdfs(G)
         except Exception as e:
             st.error(f"OSM road network fetch failed: {e}")
             st.stop()
