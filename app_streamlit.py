@@ -261,10 +261,10 @@ if run:
     with st.spinner("Computing isochrones..."):
         try:
             # Reproject uploaded points to the graph's CRS before nearest-node search
-gdf_points_proj = gdf_points.to_crs(nodes.crs)
-xs = gdf_points_proj.geometry.x.to_list()
-ys = gdf_points_proj.geometry.y.to_list()
-origins = ox.distance.nearest_nodes(G, X=xs, Y=ys)
+            gdf_points_proj = gdf_points.to_crs(nodes.crs)
+            xs = gdf_points_proj.geometry.x.to_list()
+            ys = gdf_points_proj.geometry.y.to_list()
+            origins = ox.distance.nearest_nodes(G, X=xs, Y=ys)
 
             # multi-source Dijkstra
             dist_dicts = []
